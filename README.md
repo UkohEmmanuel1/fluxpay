@@ -40,7 +40,7 @@ The starter defaults to SQLite. PostgreSQL compose/migration groundwork is prese
 - TypeScript/Python SDKs, developer portal and sandbox
 - Rate limits, observability, backups, security review and compliance readiness
 
-See `docs/PRODUCTION_ROADMAP.md`, `docs/THREAT_MODEL.md`, and `docs/OPERATIONS.md`.
+See `docs/IMPLEMENTED_FEATURES.md`, `docs/openapi.yaml`, `docs/PRODUCTION_ROADMAP.md`, `docs/THREAT_MODEL.md`, and `docs/OPERATIONS.md`.
 
 ## Safety boundary
 
