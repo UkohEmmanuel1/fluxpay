@@ -154,12 +154,12 @@ async fn create_invoice(State(s):State<Arc<AppState>>,Json(i):Json<CreateInvoice
     match r{Ok(_)=>(StatusCode::CREATED,Json(serde_json::json!({"id":id,"status":"open","checkout_path":checkout,"created_at":now.to_rfc3339(),"expires_at":expiry.to_rfc3339()}))).into_response(),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"invoice creation failed")}}
 }
 async fn list_invoices(State(s):State<Arc<AppState>>)->Response {
-    match sqlx::query("SELECT id,amount,currency,description,customer_email,reference,status,checkout_path,created_at,expires_at FROM invoices ORDER BY created_at DESC LIMIT 100").fetch_all(&s.db).await {
+    match sqlx::query_as::<_,InvoiceRow>("SELECT id,amount,currency,description,customer_email,reference,status,checkout_path,created_at,expires_at FROM invoices ORDER BY created_at DESC LIMIT 100").fetch_all(&s.db).await {
         Ok(rows)=>Json(rows).into_response(),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"invoice query failed")}
     }
 }
 async fn get_invoice(State(s):State<Arc<AppState>>,Path(id):Path<String>)->Response {
-    match sqlx::query("SELECT id,amount,currency,description,customer_email,reference,status,checkout_path,created_at,expires_at FROM invoices WHERE id=?").bind(id).fetch_optional(&s.db).await {
+    match sqlx::query_as::<_,InvoiceRow>("SELECT id,amount,currency,description,customer_email,reference,status,checkout_path,created_at,expires_at FROM invoices WHERE id=?").bind(id).fetch_optional(&s.db).await {
         Ok(Some(row))=>Json(row).into_response(),Ok(None)=>error(StatusCode::NOT_FOUND,"invoice not found"),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"invoice query failed")}
     }
 }
@@ -172,7 +172,7 @@ async fn create_payment_link(State(s):State<Arc<AppState>>,Json(i):Json<CreateLi
     match r{Ok(_)=>(StatusCode::CREATED,Json(serde_json::json!({"id":id,"slug":slug,"url":format!("/pay/{slug}"),"status":"active"}))).into_response(),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"payment link creation failed")}}
 }
 async fn list_links(State(s):State<Arc<AppState>>)->Response {
-    match sqlx::query("SELECT id,slug,amount,currency,title,description,reference,status,created_at,expires_at FROM payment_links ORDER BY created_at DESC LIMIT 100").fetch_all(&s.db).await{Ok(r)=>Json(r).into_response(),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"query failed")}}
+    match sqlx::query_as::<_,PaymentLinkRow>("SELECT id,slug,amount,currency,title,description,reference,status,created_at,expires_at FROM payment_links ORDER BY created_at DESC LIMIT 100").fetch_all(&s.db).await{Ok(r)=>Json(r).into_response(),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"query failed")}}
 }
 async fn create_customer(State(s):State<Arc<AppState>>,Json(i):Json<CreateCustomer>)->Response {
     let id=format!("cus_{}",Uuid::new_v4().simple());let now=Utc::now().to_rfc3339();
@@ -181,7 +181,7 @@ async fn create_customer(State(s):State<Arc<AppState>>,Json(i):Json<CreateCustom
     }
 }
 async fn list_customers(State(s):State<Arc<AppState>>)->Response {
-    match sqlx::query("SELECT id,email,name,metadata,created_at FROM customers ORDER BY created_at DESC LIMIT 100").fetch_all(&s.db).await{Ok(r)=>Json(r).into_response(),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"customer query failed")}}
+    match sqlx::query_as::<_,CustomerRow>("SELECT id,email,name,metadata,created_at FROM customers ORDER BY created_at DESC LIMIT 100").fetch_all(&s.db).await{Ok(r)=>Json(r).into_response(),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"customer query failed")}}
 }
 async fn create_webhook_endpoint(State(s):State<Arc<AppState>>,Json(i):Json<CreateWebhook>)->Response {
     if !i.url.starts_with("https://"){return error(StatusCode::BAD_REQUEST,"webhook URL must use HTTPS");}
@@ -191,7 +191,7 @@ async fn create_webhook_endpoint(State(s):State<Arc<AppState>>,Json(i):Json<Crea
     }
 }
 async fn list_webhook_endpoints(State(s):State<Arc<AppState>>)->Response {
-    match sqlx::query("SELECT id,url,events,created_at FROM webhook_endpoints ORDER BY created_at DESC").fetch_all(&s.db).await{Ok(r)=>Json(r).into_response(),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"webhook endpoint query failed")}}
+    match sqlx::query_as::<_,WebhookEndpointRow>("SELECT id,url,events,created_at FROM webhook_endpoints ORDER BY created_at DESC").fetch_all(&s.db).await{Ok(r)=>Json(r).into_response(),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"webhook endpoint query failed")}}
 }
 async fn analytics(State(s):State<Arc<AppState>>)->Response {
     let total=sqlx::query_scalar::<_,i64>("SELECT COUNT(*) FROM payments").fetch_one(&s.db).await.unwrap_or(0);
