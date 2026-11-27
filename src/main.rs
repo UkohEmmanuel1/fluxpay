@@ -193,6 +193,24 @@ async fn create_webhook_endpoint(State(s):State<Arc<AppState>>,Json(i):Json<Crea
 async fn list_webhook_endpoints(State(s):State<Arc<AppState>>)->Response {
     match sqlx::query_as::<_,WebhookEndpointRow>("SELECT id,url,events,created_at FROM webhook_endpoints ORDER BY created_at DESC").fetch_all(&s.db).await{Ok(r)=>Json(r).into_response(),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"webhook endpoint query failed")}}
 }
+async fn public_payment_link(State(s):State<Arc<AppState>>,Path(slug):Path<String>)->Response {
+    match sqlx::query("SELECT title,description,amount,currency,status,expires_at FROM payment_links WHERE slug=?").bind(slug).fetch_optional(&s.db).await {
+        Ok(Some(row))=>{
+            use sqlx::Row;
+            let title=row.try_get::<Option<String>,_>("title").unwrap_or(None).unwrap_or_else(||"Payment".into());
+            let description=row.try_get::<Option<String>,_>("description").unwrap_or(None).unwrap_or_default();
+            let amount=row.try_get::<Option<String>,_>("amount").unwrap_or(None);
+            let currency=row.try_get::<String,_>("currency").unwrap_or_else(|_|"USD".into());
+            let status=row.try_get::<String,_>("status").unwrap_or_default();
+            let expires=row.try_get::<String,_>("expires_at").unwrap_or_default();
+            let amount_display=amount.map(|a|format!("{} {}",a,currency)).unwrap_or_else(||format!("Enter amount in {}",currency));
+            let html=format!("<!doctype html><html><head><meta name='viewport' content='width=device-width'><title>FluxPay payment link</title></head><body style='font-family:system-ui;max-width:560px;margin:4rem auto;padding:1rem;background:#0b1020;color:#fff'><h1>{}</h1><p>{}</p><h2>{}</h2><p>Status: {}</p><p>Expires: {}</p><p>This payment link is a prototype record. Payment submission and verification are not available yet.</p></body></html>",escape_html(&title),escape_html(&description),escape_html(&amount_display),escape_html(&status),escape_html(&expires));
+            ([(axum::http::header::CONTENT_TYPE,"text/html; charset=utf-8")],html).into_response()
+        },
+        Ok(None)=>error(StatusCode::NOT_FOUND,"payment link not found"),
+        Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"payment link lookup failed")}
+    }
+}
 async fn analytics(State(s):State<Arc<AppState>>)->Response {
     let total=sqlx::query_scalar::<_,i64>("SELECT COUNT(*) FROM payments").fetch_one(&s.db).await.unwrap_or(0);
     let confirmed=sqlx::query_scalar::<_,i64>("SELECT COUNT(*) FROM payments WHERE status='confirmed'").fetch_one(&s.db).await.unwrap_or(0);
@@ -240,7 +258,7 @@ async fn main()->Result<(),Box<dyn std::error::Error>> {
       .route("/v1/webhook-endpoints",post(create_webhook_endpoint).get(list_webhook_endpoints))
       .route("/v1/analytics/overview",get(analytics))
       .layer(middleware::from_fn_with_state(s.clone(),auth));
-    let public=Router::new().route("/checkout/:id",get(checkout_page));
+    let public=Router::new().route("/checkout/:id",get(checkout_page)).route("/pay/:slug",get(public_payment_link));
     let app=Router::new().route("/health",get(health)).route("/ready",get(readiness)).merge(public).merge(protected).with_state(s);
     let host=env::var("FLUXPAY_HOST").unwrap_or_else(|_|"127.0.0.1".into());let port=env::var("FLUXPAY_PORT").unwrap_or_else(|_|"8080".into()).parse::<u16>()?;
     let addr:SocketAddr=format!("{host}:{port}").parse()?;let listener=tokio::net::TcpListener::bind(addr).await?;
