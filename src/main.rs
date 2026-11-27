@@ -78,7 +78,7 @@ async fn readiness(State(s): State<Arc<AppState>>) -> Response {
 }
 fn valid_amount(raw: &str) -> Option<String> {
     match raw.trim().parse::<rust_decimal::Decimal>() {
-        Ok(v) if v.is_sign_positive() && !v.is_zero() && v.scale() <= 6 && v.to_string().len() <= 32 => Some(v.normalize().to_string(),
+        Ok(v) if v.is_sign_positive() && !v.is_zero() && v.scale() <= 6 && v.to_string().len() <= 32 => Some(v.normalize().to_string()),
         _ => None
     }
 }
@@ -223,7 +223,7 @@ async fn main()->Result<(),Box<dyn std::error::Error>> {
     sqlx::query("CREATE TABLE IF NOT EXISTS payments(id TEXT PRIMARY KEY,amount TEXT NOT NULL,currency TEXT NOT NULL,network TEXT NOT NULL,reference TEXT,status TEXT NOT NULL,payment_address TEXT,transaction_hash TEXT,created_at TEXT NOT NULL,expires_at TEXT NOT NULL)").execute(&db).await?;
     sqlx::query("CREATE TABLE IF NOT EXISTS idempotency_keys(key TEXT PRIMARY KEY,payment_id TEXT NOT NULL REFERENCES payments(id),created_at TEXT NOT NULL)").execute(&db).await?;
     sqlx::query("CREATE UNIQUE INDEX IF NOT EXISTS payments_tx_hash_unique ON payments(transaction_hash) WHERE transaction_hash IS NOT NULL").execute(&db).await?;
-    sqlx::query("CREATE TABLE IF NOT EXISTS invoices(id TEXT PRIMARY KEY,amount TEXT NOT NULL,currency TEXT NOT NULL,description TEXT,customer_email TEXT,reference TEXT,status TEXT NOT NULL,checkout_path TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL)").execute(&db).await?;
+    sqlx::query("CREATE TABLE IF NOT EXISTS invoices(id TEXT PRIMARY KEY,amount TEXT NOT NULL,currency TEXT NOT NULL,description TEXT,customer_email TEXT,reference TEXT,status TEXT NOT NULL,checkout_path TEXT NOT NULL,payment_address TEXT,created_at TEXT NOT NULL,expires_at TEXT NOT NULL)").execute(&db).await?;
     sqlx::query("CREATE TABLE IF NOT EXISTS payment_links(id TEXT PRIMARY KEY,slug TEXT UNIQUE NOT NULL,amount TEXT,currency TEXT NOT NULL,title TEXT,description TEXT,reference TEXT,status TEXT NOT NULL,created_at TEXT NOT NULL,expires_at TEXT NOT NULL)").execute(&db).await?;
     sqlx::query("CREATE TABLE IF NOT EXISTS customers(id TEXT PRIMARY KEY,email TEXT,name TEXT,metadata TEXT NOT NULL,created_at TEXT NOT NULL)").execute(&db).await?;
     sqlx::query("CREATE TABLE IF NOT EXISTS webhook_endpoints(id TEXT PRIMARY KEY,url TEXT NOT NULL,secret TEXT NOT NULL,events TEXT NOT NULL,created_at TEXT NOT NULL)").execute(&db).await?;
