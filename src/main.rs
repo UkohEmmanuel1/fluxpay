@@ -199,6 +199,7 @@ async fn analytics(State(s):State<Arc<AppState>>)->Response {
     let pending=sqlx::query_scalar::<_,i64>("SELECT COUNT(*) FROM payments WHERE status='pending'").fetch_one(&s.db).await.unwrap_or(0);
     Json(serde_json::json!({"total_payments":total,"confirmed_payments":confirmed,"pending_payments":pending,"confirmation_rate":if total>0 {confirmed as f64/total as f64} else {0.0}})).into_response()
 }
+fn escape_html(value: &str) -> String { value.replace('&', "&amp;").replace('<', "&lt;").replace('>', "&gt;").replace('"', "&quot;").replace('\'', "&#39;") }
 async fn checkout_page(State(s):State<Arc<AppState>>,Path(id):Path<String>)->Response {
     match sqlx::query("SELECT amount,currency,status,payment_address,expires_at FROM invoices WHERE id=?").bind(id).fetch_optional(&s.db).await {
         Ok(Some(row))=>{
@@ -206,7 +207,7 @@ async fn checkout_page(State(s):State<Arc<AppState>>,Path(id):Path<String>)->Res
             let amount=row.try_get::<String,_>("amount").unwrap_or_default();let currency=row.try_get::<String,_>("currency").unwrap_or_default();
             let status=row.try_get::<String,_>("status").unwrap_or_default();let address=row.try_get::<Option<String>,_>("payment_address").unwrap_or(None).or_else(||s.receiving_address.clone()).unwrap_or_default();
             let expires=row.try_get::<String,_>("expires_at").unwrap_or_default();
-            let html=format!("<!doctype html><html><head><meta name='viewport' content='width=device-width'><title>FluxPay Checkout</title></head><body style='font-family:system-ui;max-width:560px;margin:4rem auto;padding:1rem;background:#0b1020;color:#fff'><h1>FluxPay Checkout</h1><p>Invoice status: {status}</p><h2>{amount} {currency}</h2><p>Network: {}</p><p>Send payment to:</p><code style='word-break:break-all'>{address}</code><p>Expires: {expires}</p><p>Payment verification is not automatic in this starter.</p></body></html>",s.network);
+            let html=format!("<!doctype html><html><head><meta name='viewport' content='width=device-width'><title>FluxPay Checkout</title></head><body style='font-family:system-ui;max-width:560px;margin:4rem auto;padding:1rem;background:#0b1020;color:#fff'><h1>FluxPay Checkout</h1><p>Invoice status: {}</p><h2>{}</h2><p>Network: {}</p><p>Send payment to:</p><code style='word-break:break-all'>{}</code><p>Expires: {}</p><p>Payment verification is not automatic in this starter.</p></body></html>",escape_html(&status),escape_html(&format!("{amount} {currency}")),escape_html(&s.network),escape_html(&address),escape_html(&expires));
             ([(axum::http::header::CONTENT_TYPE,"text/html; charset=utf-8")],html).into_response()
         },Ok(None)=>error(StatusCode::NOT_FOUND,"invoice not found"),Err(e)=>{warn!("{e}");error(StatusCode::INTERNAL_SERVER_ERROR,"checkout unavailable")}
     }
@@ -238,9 +239,9 @@ async fn main()->Result<(),Box<dyn std::error::Error>> {
       .route("/v1/customers",post(create_customer).get(list_customers))
       .route("/v1/webhook-endpoints",post(create_webhook_endpoint).get(list_webhook_endpoints))
       .route("/v1/analytics/overview",get(analytics))
-      .route("/checkout/:id",get(checkout_page))
       .layer(middleware::from_fn_with_state(s.clone(),auth));
-    let app=Router::new().route("/health",get(health)).route("/ready",get(readiness)).merge(protected).with_state(s);
+    let public=Router::new().route("/checkout/:id",get(checkout_page));
+    let app=Router::new().route("/health",get(health)).route("/ready",get(readiness)).merge(public).merge(protected).with_state(s);
     let host=env::var("FLUXPAY_HOST").unwrap_or_else(|_|"127.0.0.1".into());let port=env::var("FLUXPAY_PORT").unwrap_or_else(|_|"8080".into()).parse::<u16>()?;
     let addr:SocketAddr=format!("{host}:{port}").parse()?;let listener=tokio::net::TcpListener::bind(addr).await?;
     info!("FluxPay listening at {}",addr);axum::serve(listener,app).await?;Ok(())
