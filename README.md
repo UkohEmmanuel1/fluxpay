@@ -1,52 +1,39 @@
 # FluxPay
 
-Rust/Axum crypto-payment API scaffold, intended for **testnet development only**. It is not a production payment processor and does not currently verify on-chain transfers.
+Rust/Axum crypto-payment infrastructure project. **Development only; not production-ready and must not process real funds.**
 
-
-## Features
+## Current API scaffold
 - Axum/Tokio API and SQLite persistence
-- Payment sessions for USDC on a configured network label
-- Bearer API key
-- Decimal-safe amount validation
-- Optional persisted idempotency keys for payment creation
-- Optional HMAC webhook delivery with in-process retries (not durable)
-- Test-only simulated confirmation route
-- `/health` liveness and `/ready` database readiness
-- Dockerfile and GitHub Actions checks
+- Payment session creation and retrieval
+- Shared bearer API key (development)
+- Decimal-safe amount parsing
+- Idempotency-key support (limited implementation)
+- HMAC webhook (in-process retries; not durable)
+- Simulated confirmation route, gated by configuration
+- Health and database readiness endpoints
 
+## Repository groundwork added
+- `docs/PRODUCTION_ROADMAP.md`: architecture and milestone plan
+- `docs/THREAT_MODEL.md`: initial threat model and security controls
+- `docs/OPERATIONS.md`: local ops and launch gates
+- `docker-compose.yml`: local PostgreSQL service (API is not yet connected to it)
+- `migrations/0001_initial.sql`: initial PostgreSQL schema draft (not yet wired into API)
+- `LICENSE`: MIT
 
-## Run
-Copy `.env.example` to `.env`, change secrets, then run:
-
-
+## Run current API
+Install Rust stable, copy `.env.example` to `.env`, adjust values, and run:
 ```sh
 cargo run
 ```
 
-## API
-`GET /health` public liveness endpoint
-`GET /ready` public database readiness endpoint
-`POST /v1/payments` bearer-authenticated payment creation. Send an optional `Idempotency-Key` header.
-`GET /v1/payments/{id}` bearer-authenticated lookup
-`POST /v1/payments/{id}/dev-confirm` simulated confirmation only when `FLUXPAY_DEV_CONFIRMATION=true`
+## Endpoints
+- `GET /health` - liveness
+- `GET /ready` - SQLite readiness
+- `POST /v1/payments` - create payment (Bearer key)
+- `GET /v1/payments/{id}` - retrieve payment
+- `POST /v1/payments/{id}/dev-confirm` - simulated confirmation only when enabled
 
+## Production readiness status
+This is an early development scaffold. It is **not ready for real money**. It currently uses SQLite and a single shared bearer key. Payment receiving address is shared and cannot safely attribute simultaneous invoices. Confirmation is simulated, webhooks are in-process, and the API is not wired to the PostgreSQL compose service/migration. Merchant isolation, on-chain verification, reorg handling, durable outbox, rate limits, admin/dashboard, and operational security are outstanding.
 
-### Create payment
-```http
-POST /v1/payments
-Authorization: Bearer sk_test_change_me
-Idempotency-Key: order-1029
-Content-Type: application/json
-```
-```json
-{
-  "amount": "25.00",
-  "currency": "USDC",
-  "network": "base-sepolia",
-  "reference": "order_1029",
-  "expires_in": 1800
-}
-```
-
-## Security and production readiness
-Read [`SECURITY.md`](SECURITY.md). Do not accept real funds with this scaffold. On-chain transaction verification, per-merchant authentication, unique payment attribution, durable webhook delivery, PostgreSQL, operational controls, and compliance review are not implemented yet.
+Review the roadmap, threat model, and operations docs before deploying.
