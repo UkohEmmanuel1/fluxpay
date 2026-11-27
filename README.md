@@ -1,39 +1,47 @@
 # FluxPay
 
-Rust/Axum crypto-payment infrastructure project. **Development only; not production-ready and must not process real funds.**
+**Rust-first crypto payment infrastructure starter.** FluxPay is an experimental payment API for payment intents, invoices, payment links, customers, webhook endpoint registration, and basic analytics.
 
-## Current API scaffold
-- Axum/Tokio API and SQLite persistence
-- Payment session creation and retrieval
-- Shared bearer API key (development)
-- Decimal-safe amount parsing
-- Idempotency-key support (limited implementation)
-- HMAC webhook (in-process retries; not durable)
-- Simulated confirmation route, gated by configuration
-- Health and database readiness endpoints
+> Not production-ready. Do not use to process real funds. On-chain verification, merchant isolation, durable webhook delivery, hosted-checkout security, and production database deployment are not implemented.
 
-## Repository groundwork added
-- `docs/PRODUCTION_ROADMAP.md`: architecture and milestone plan
-- `docs/THREAT_MODEL.md`: initial threat model and security controls
-- `docs/OPERATIONS.md`: local ops and launch gates
-- `docker-compose.yml`: local PostgreSQL service (API is not yet connected to it)
-- `migrations/0001_initial.sql`: initial PostgreSQL schema draft (not yet wired into API)
-- `LICENSE`: MIT
+## Implemented API surface (prototype)
 
-## Run current API
-Install Rust stable, copy `.env.example` to `.env`, adjust values, and run:
-```sh
-cargo run
-```
+- `GET /health`, `GET /ready`
+- `POST /v1/payments`, `GET /v1/payments`, `GET /v1/payments/{id}`
+- `POST /v1/payments/{id}/dev-confirm` (simulation only; explicitly gated)
+- `POST /v1/invoices`, `GET /v1/invoices`, `GET /v1/invoices/{id}`
+- `GET /checkout/{invoice-id}` (basic HTML invoice display; no chain watcher)
+- `POST /v1/payment-links`, `GET /v1/payment-links`
+- `POST /v1/customers`, `GET /v1/customers`
+- `POST /v1/webhook-endpoints`, `GET /v1/webhook-endpoints`
+- `GET /v1/analytics/overview`
 
-## Endpoints
-- `GET /health` - liveness
-- `GET /ready` - SQLite readiness
-- `POST /v1/payments` - create payment (Bearer key)
-- `GET /v1/payments/{id}` - retrieve payment
-- `POST /v1/payments/{id}/dev-confirm` - simulated confirmation only when enabled
+Protected routes use a single prototype bearer key from `FLUXPAY_API_KEY`. This is not merchant-scoped authentication. Webhook endpoint records are stored, but event dispatch currently uses the single configured `FLUXPAY_WEBHOOK_URL`; the endpoint registry is not connected to a durable delivery worker.
 
-## Production readiness status
-This is an early development scaffold. It is **not ready for real money**. It currently uses SQLite and a single shared bearer key. Payment receiving address is shared and cannot safely attribute simultaneous invoices. Confirmation is simulated, webhooks are in-process, and the API is not wired to the PostgreSQL compose service/migration. Merchant isolation, on-chain verification, reorg handling, durable outbox, rate limits, admin/dashboard, and operational security are outstanding.
+## Run locally
 
-Review the roadmap, threat model, and operations docs before deploying.
+1. Install Rust stable.
+2. Copy `.env.example` to `.env` and use unique secrets.
+3. Run `cargo run`.
+
+The starter defaults to SQLite. PostgreSQL compose/migration groundwork is present but not connected to this API.
+
+## Planned production architecture
+
+- Rust/Axum modular monolith with API and durable worker
+- PostgreSQL + SQLx migrations
+- Merchant isolation, scoped hashed API keys and RBAC
+- Transactional idempotency (merchant-scoped and request-hash bound)
+- Double-entry ledger with immutable journal records
+- Base USDC on-chain monitoring and receipt verification
+- Reorg-aware finality policy
+- Durable webhook outbox, retry/backoff, dead-letter and replay
+- Hosted checkout and QR payment instructions
+- TypeScript/Python SDKs, developer portal and sandbox
+- Rate limits, observability, backups, security review and compliance readiness
+
+See `docs/PRODUCTION_ROADMAP.md`, `docs/THREAT_MODEL.md`, and `docs/OPERATIONS.md`.
+
+## Safety boundary
+
+The simulated confirmation endpoint is not blockchain verification. The checkout page does not generate a QR code, verify transactions, or automatically settle invoices. Payment links are records only and are not yet interactive checkout sessions. Analytics are basic counts, not accounting or revenue reports. Do not use this API in production or connect it to real-money flows.
