@@ -39,7 +39,7 @@ CREATE TABLE IF NOT EXISTS customers (
 );
 
 CREATE TABLE IF NOT EXISTS webhook_endpoints (
-  id TEXT PRIMARY PRIMARY KEY,
+  id TEXT PRIMARY KEY,
   url TEXT NOT NULL,
   secret TEXT NOT NULL,
   events JSONB NOT NULL DEFAULT '[]'::jsonb,
